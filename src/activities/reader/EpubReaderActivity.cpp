@@ -1311,6 +1311,23 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
     // HALF ghost-cleanup path, which drives every pixel to its target
     // regardless of residue.
     pagesUntilFullRefresh = 1;
+  } else if (needsTextGrayscale) {
+    // Grayscale-aware base display for text AA: the standard BW waveform
+    // drives particles too firmly for the subsequent gray overlay, causing
+    // the entire text to appear washed out. displayGrayscaleBase uses the
+    // OEM grayscale pipeline waveform ("AA-pre-BW(mid)" on X3, plain FAST
+    // on X4) that keeps particles receptive to the gray LUT — matching the
+    // XTC reader's proven approach (XtcReaderActivity.cpp:339-351).
+    if (pagesUntilFullRefresh <= 1) {
+      // Periodic ghost cleanup: full scrub via HALF, then precondition for
+      // the grayscale planes that follow.
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      renderer.preconditionGrayscale();
+      pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+    } else {
+      renderer.displayGrayscaleBase(HalDisplay::FAST_REFRESH);
+      pagesUntilFullRefresh--;
+    }
   } else {
     ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
   }
